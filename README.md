@@ -79,5 +79,7 @@ M6: P1 verification, RLS and storage privacy review, recovery/performance/usabil
 ## Architecture
 
 Mobile app: Flutter/Dart + Material 3 — (Local-first storage) —> SQLite + Drift (catch cache/queue, private app photo files, pending/uploading/failed/synced, stables IDs)
+
 (HTTPS sync) ___> Supabase backend (Auth: account identity and sessions, PostgreSQL: profiles, catches, metadata, Storage: private photo objects, RLS + Storage access policies)
+
 (Camera/location/maps) ___> Device/external services (image_picker + geolocator, flutter_map + online OpenStreetMap tiles, P2: recognition, OpenStreetMap attribution)

@@ -29,3 +29,21 @@ real fishing experience. They do not represent the effort, patience, and memorie
 behind a real catch.
 FishDex connects real fishing with a virtual collection. It lets anglers release the
 real fish while keeping a virtual version they can grow, display, and personalize.
+
+
+
+
+## Setup to work on the project
+
+1. Install [Flutter](https://docs.flutter.dev/get-started/install/windows), Git, and Android Studio. Run `flutter doctor` and fix any red Android items.
+2. Clone the repo into a simple folder such as `C:\src` (not Dropbox or a folder with spaces).
+3. Run `flutter pub get` inside the repo folder.
+4. In Android Studio, open Device Manager, create a Pixel emulator with a Play Store image, and start it. (A real Android phone with USB debugging also works.)
+5. Run `flutter devices` to confirm the emulator shows up, then run the app with `flutter run`. If more than one device is listed, add `-d <device id>`.
+6. Run the tests with `flutter test`.
+
+The first build takes several minutes. Later runs are faster, and pressing `r` in the terminal reloads changes instantly.
+
+Supabase keys: copy `env.example.json` to `env.json`, fill in the keys the team shares privately, and run with `flutter run --dart-define-from-file=env.json`. Never commit `env.json`.
+
+Work on a branch and open a pull request instead of committing to `main`.

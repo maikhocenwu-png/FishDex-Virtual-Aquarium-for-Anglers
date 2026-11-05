@@ -47,3 +47,42 @@ The first build takes several minutes. Later runs are faster, and pressing `r` i
 Supabase keys: copy `env.example.json` to `env.json`, fill in the keys the team shares privately, and run with `flutter run --dart-define-from-file=env.json`. Never commit `env.json`.
 
 Work on a branch and open a pull request instead of committing to `main`.
+
+
+
+
+
+## Approximate Timeline
+
+Week 1
+M1: Approve stack, tasks, catalog. Create flutter shell and supabase authentication/postgreSQL/RLS/storage prototype.
+Week 2
+M2: Manual species selection, catch form, stable IDs, local catch/photos persistence, catch detail view
+Week 3
+M3: Local first sync queue, supabase, private photo uploads, handling
+Week 4
+M4: Catch editing and history, species/date/location filters, locations, online map, catch comparisons, snapshots
+Week 5
+M5: Individual virtual collection, P1 integration, review, work on P2 (aquarium  and sharing features) only if P1 is already complete
+Week 6
+M6: P1 verification, RLS and storage privacy review, recovery/performance/usability checks, fixes, demo build
+
+
+
+
+Architecture
+
+Architecture
+
+Mobile app: Flutter/Dart + Material 3 — (Local-first storage) —> SQLite + Drift (catch
+|               |                                                            cache/queue, private                              
+|               |                                                            app photo files,                                         
+|               |                                                            pending/uploading/failed/synced,         
+|               |                                                            stables IDs)
+|               |___ (HTTPS sync) ___> Supabase backend (Auth: account identity and         
+|                                               sessions, PostgreSQL: profiles, catches, metadata,          
+|                                               Storage: private photo objects, RLS + Storage access       
+|                                               policies)
+|___ (Camera/location/maps) ___> Device/external services (image_picker +                  .                                               
+geolocator, flutter_map + online OpenStreetMap tiles, P2:                   .                                               
+recognition, OpenStreetMap attribution)

@@ -152,6 +152,9 @@ class AppStore extends ChangeNotifier {
     ),
   ];
 
+  String userName = 'John Doe';
+  String userEmail = 'John.Doe@example.com';
+
   // Privacy switches. A new account shares nothing.
   bool shareLocation = false;
   bool sharePhotos = false;

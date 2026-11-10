@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/store.dart';
 import '../ui/theme.dart';
@@ -22,9 +23,10 @@ class ProfileScreen extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    const InfoRow(
-                      title: 'Jhon Doe',
-                      subtitle: 'Angler since 2026',
+                    InfoRow(
+                      title: store.userName,
+                      subtitle:
+                          store.userEmail.isEmpty ? null : store.userEmail,
                     ),
                     const SizedBox(height: 20),
                     const Text('SHARING (all off by default)',
@@ -59,12 +61,18 @@ class ProfileScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     OutlinePill(
                       'Sign out',
-                      onTap: () =>
+                      onTap: () async {
+                        try {
+                          await Supabase.instance.client.auth.signOut();
+                        } catch (_) {}
+                        if (context.mounted) {
                           Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                            builder: (_) => const SignInScreen()),
-                        (route) => false,
-                      ),
+                            MaterialPageRoute(
+                                builder: (_) => const SignInScreen()),
+                            (_) => false,
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),

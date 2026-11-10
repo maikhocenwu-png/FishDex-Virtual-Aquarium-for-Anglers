@@ -1,16 +1,17 @@
-import 'package:fishdex/features/home/home_shell.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fishdex/app.dart';
+import 'package:fishdex/ui/widgets.dart';
+
 void main() {
-  testWidgets('home shell switches between screens', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: HomeShell()));
+  testWidgets('sign in opens the catches list', (tester) async {
+    await tester.pumpWidget(const FishDexApp());
+    expect(find.text('FishDex'), findsOneWidget);
 
-    expect(find.text('Aquarium (milestone 4)'), findsOneWidget);
+    await tester.tap(find.widgetWithText(DarkButton, 'Sign in'));
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Map'));
-    await tester.pump();
-
-    expect(find.text('Map (milestone 5)'), findsOneWidget);
+    expect(find.text('My catches'), findsOneWidget);
+    expect(find.text('Largemouth bass'), findsOneWidget);
   });
 }

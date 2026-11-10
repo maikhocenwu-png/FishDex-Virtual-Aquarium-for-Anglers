@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'features/home/home_shell.dart';
+import 'screens/auth_screens.dart';
+import 'ui/theme.dart';
 
 class FishDexApp extends StatelessWidget {
   const FishDexApp({super.key});
@@ -10,11 +11,8 @@ class FishDexApp extends StatelessWidget {
     return MaterialApp(
       title: 'FishDex',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.teal,
-      ),
-      home: const HomeShell(),
+      theme: buildTheme(),
+      home: const SignInScreen(),
     );
   }
 }

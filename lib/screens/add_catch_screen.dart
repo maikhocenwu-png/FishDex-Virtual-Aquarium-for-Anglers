@@ -4,7 +4,7 @@ import '../data/store.dart';
 import '../ui/widgets.dart';
 import 'species_picker_screen.dart';
 
-/// A.3 Add a catch, and A.15 Edit catch (when [editing] is given).
+// this screen is used to add a new catch or edit an existing one.
 class AddCatchScreen extends StatefulWidget {
   const AddCatchScreen({super.key, this.editing});
 
@@ -18,6 +18,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
   late String? _species;
   late DateTime _when;
   late bool _hasPhoto;
+  bool _saving = false;
   late final TextEditingController _place;
   late final TextEditingController _length;
   late final TextEditingController _weight;
@@ -68,46 +69,64 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (_species == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please choose a species first')),
       );
       return;
     }
+    setState(() => _saving = true);
     final e = widget.editing;
-    if (e != null) {
-      e.species = _species!;
-      e.caughtAt = _when;
-      e.place = _place.text.trim();
-      e.length = _length.text.trim();
-      e.weight = _weight.text.trim();
-      e.notes = _notes.text.trim();
-      e.hasPhoto = _hasPhoto;
-      store.changed();
-    } else {
-      store.add(CatchItem(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
-        species: _species!,
-        caughtAt: _when,
-        place: _place.text.trim(),
-        length: _length.text.trim(),
-        weight: _weight.text.trim(),
-        notes: _notes.text.trim(),
-        hasPhoto: _hasPhoto,
-        uploaded: false,
-        fed: true, // the new fish appears in the aquarium right away
-      ));
-      homeTab.value = 0;
+    try {
+      if (e != null) {
+        e.species = _species!;
+        e.caughtAt = _when;
+        e.place = _place.text.trim();
+        e.length = _length.text.trim();
+        e.weight = _weight.text.trim();
+        e.notes = _notes.text.trim();
+        e.hasPhoto = _hasPhoto;
+        await store.updateCatch(e);
+      } else {
+        await store.addCatch(
+          CatchItem(
+            id: newCatchId(),
+            species: _species!,
+            caughtAt: _when,
+            place: _place.text.trim(),
+            length: _length.text.trim(),
+            weight: _weight.text.trim(),
+            notes: _notes.text.trim(),
+            hasPhoto: _hasPhoto,
+          ),
+        );
+        homeTab.value = 0;
+      }
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEdit
+                ? 'Changes saved'
+                : 'Saved. A new fish joined your aquarium!',
+          ),
+        ),
+      );
+    } catch (_) {
+      store.loadAll(); // put the screen back to what is really saved
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not save. Check your internet. Length and weight must be above 0.',
+          ),
+        ),
+      );
     }
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isEdit
-            ? 'Changes saved'
-            : 'Saved. A new fish joined your aquarium!'),
-      ),
-    );
   }
 
   @override
@@ -115,10 +134,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
     return Scaffold(
       body: Column(
         children: [
-          TopBar(
-            title: _isEdit ? 'Edit catch' : 'Add a catch',
-            back: 'Cancel',
-          ),
+          TopBar(title: _isEdit ? 'Edit catch' : 'Add a catch', back: 'Cancel'),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -180,8 +196,12 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 24),
-                  DarkButton(_isEdit ? 'Save changes' : 'Confirm and save',
-                      onTap: _save),
+                  DarkButton(
+                    _saving
+                        ? 'Saving...'
+                        : (_isEdit ? 'Save changes' : 'Confirm and save'),
+                    onTap: _saving ? null : _save,
+                  ),
                 ],
               ),
             ),

@@ -4,7 +4,9 @@ import 'screens/auth_screens.dart';
 import 'ui/theme.dart';
 
 class FishDexApp extends StatelessWidget {
-  const FishDexApp({super.key});
+  const FishDexApp({super.key, this.home = const SignInScreen()});
+
+  final Widget home;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +14,7 @@ class FishDexApp extends StatelessWidget {
       title: 'FishDex',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      home: const SignInScreen(),
+      home: home,
     );
   }
 }

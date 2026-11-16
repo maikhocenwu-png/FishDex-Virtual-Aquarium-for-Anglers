@@ -173,8 +173,10 @@ class AppField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(fontSize: 16, color: kMuted),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
         border: border,
         enabledBorder: border,
         focusedBorder: OutlineInputBorder(
@@ -251,10 +253,7 @@ class Tag extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected ? Colors.white : kInk,
-          ),
+          style: TextStyle(fontSize: 12, color: selected ? Colors.white : kInk),
         ),
       ),
     );
@@ -298,12 +297,14 @@ class CatchCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.tag,
+    this.species,
     this.onTap,
   });
 
   final String title;
   final String subtitle;
   final String? tag;
+  final String? species;
   final VoidCallback? onTap;
 
   @override
@@ -323,7 +324,9 @@ class CatchCard extends StatelessWidget {
           padding: const EdgeInsets.all(10),
           child: Row(
             children: [
-              const PhotoBox(width: 60, height: 60),
+              species != null
+                  ? const PhotoBox(width: 60, height: 60)
+                  : FishTile(species: species!),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -342,10 +345,7 @@ class CatchCard extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(fontSize: 13, color: kMuted),
                     ),
-                    if (tag != null) ...[
-                      const SizedBox(height: 6),
-                      Tag(tag!),
-                    ],
+                    if (tag != null) ...[const SizedBox(height: 6), Tag(tag!)],
                   ],
                 ),
               ),
@@ -501,41 +501,202 @@ class WireSwitch extends StatelessWidget {
 }
 
 /// The simple fish drawing used in the aquarium and the share card.
-class FishShape extends StatelessWidget {
-  const FishShape({super.key, this.color = const Color(0xFF666666)});
+/// Colors and a pattern for each species.
+class FishStyle {
+  const FishStyle(this.top, this.bottom, {this.pattern = 0});
 
-  final Color color;
+  final Color top;
+  final Color bottom;
+  final int pattern; // 0 plain, 1 stripes, 2 spots
+
+  static const _palette = [
+    FishStyle(Color(0xFF5BAE5B), Color(0xFFC9E8A0)),
+    FishStyle(Color(0xFF3C7FD0), Color(0xFFF2A65A)),
+    FishStyle(Color(0xFFE2573B), Color(0xFFFFC09A)),
+    FishStyle(Color(0xFF2BA8A0), Color(0xFFA7E6DF)),
+    FishStyle(Color(0xFF8A6BD1), Color(0xFFD9C8F5)),
+    FishStyle(Color(0xFFE6B422), Color(0xFFFFE9A3)),
+  ];
+
+  /// Picks a look from the species name. Same species, same look.
+  static FishStyle of(String species) {
+    final s = species.toLowerCase();
+    if (s.contains('striped')) {
+      return const FishStyle(Color(0xFF7F9BB3), Color(0xFFE6EEF3), pattern: 1);
+    }
+    if (s.contains('perch')) {
+      return const FishStyle(Color(0xFFE0A91C), Color(0xFFFFE9A3), pattern: 1);
+    }
+    if (s.contains('bass')) {
+      return const FishStyle(Color(0xFF4FA05A), Color(0xFFCDE9A4), pattern: 2);
+    }
+    if (s.contains('bluegill') ||
+        s.contains('pumpkinseed') ||
+        s.contains('crappie')) {
+      return const FishStyle(Color(0xFF3C7FD0), Color(0xFFF2A65A), pattern: 2);
+    }
+    if (s.contains('trout')) {
+      return const FishStyle(Color(0xFF2BA8A0), Color(0xFFF4C6D0), pattern: 2);
+    }
+    if (s.contains('catfish') || s.contains('carp')) {
+      return const FishStyle(Color(0xFF9B6B43), Color(0xFFE5C7A3));
+    }
+    if (s.contains('mackerel') ||
+        s.contains('bluefish') ||
+        s.contains('weakfish')) {
+      return const FishStyle(Color(0xFF2F6DB5), Color(0xFFDCE9F5), pattern: 1);
+    }
+    if (s.contains('flounder') || s.contains('tautog') || s.contains('scup')) {
+      return const FishStyle(Color(0xFFA9763F), Color(0xFFF0D3A0), pattern: 2);
+    }
+    final hash = species.codeUnits.fold<int>(
+      0,
+      (a, b) => (a * 31 + b) & 0x7fffffff,
+    );
+    return _palette[hash % _palette.length];
+  }
+}
+
+/// A colored fish facing right. Pass the species name to get its look.
+class FishShape extends StatelessWidget {
+  const FishShape({super.key, this.species = '', this.width = 96, this.color});
+
+  final String species;
+  final double width;
+  final Color? color; // old option, kept so older code still compiles
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(size: const Size(96, 40), painter: _FishPainter(color));
+    final style = color != null
+        ? FishStyle(color!, color!)
+        : FishStyle.of(species);
+    return CustomPaint(
+      size: Size(width, width * 0.5),
+      painter: _FishPainter(style),
+    );
   }
 }
 
 class _FishPainter extends CustomPainter {
-  _FishPainter(this.color);
+  _FishPainter(this.style);
 
-  final Color color;
+  final FishStyle style;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final fill = Paint()..color = color;
-    final stroke = Paint()
-      ..color = kInk
+    // Everything below is drawn on a 96 x 48 grid, then scaled to fit.
+    canvas.scale(size.width / 96, size.height / 48);
+
+    final dark = Color.lerp(style.top, Colors.black, 0.35)!;
+    final outline = Paint()
+      ..color = dark
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 1.4
+      ..strokeJoin = StrokeJoin.round;
+    final finPaint = Paint()
+      ..color = Color.lerp(style.top, style.bottom, 0.25)!;
+
+    // Fins: tail, back fin, belly fin.
     final tail = Path()
-      ..moveTo(1, 6)
-      ..lineTo(1, 34)
-      ..lineTo(25, 20)
+      ..moveTo(30, 24)
+      ..lineTo(3, 5)
+      ..quadraticBezierTo(12, 24, 3, 43)
       ..close();
-    canvas.drawPath(tail, fill);
-    canvas.drawPath(tail, stroke);
-    canvas.drawOval(Rect.fromLTWH(22, 0, 72, 40), fill);
-    canvas.drawCircle(const Offset(77, 15), 3, Paint()..color = Colors.white);
+    final dorsal = Path()
+      ..moveTo(40, 13)
+      ..quadraticBezierTo(52, -1, 68, 13)
+      ..close();
+    final pelvic = Path()
+      ..moveTo(46, 36)
+      ..lineTo(54, 47)
+      ..lineTo(62, 36)
+      ..close();
+    for (final p in [tail, dorsal, pelvic]) {
+      canvas.drawPath(p, finPaint);
+      canvas.drawPath(p, outline);
+    }
+
+    // Body: darker on top, lighter belly.
+    const body = Rect.fromLTWH(22, 9, 72, 30);
+    final bodyPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [style.top, style.bottom],
+      ).createShader(body);
+    canvas.drawOval(body, bodyPaint);
+
+    // Stripes or spots, drawn only inside the body.
+    canvas.save();
+    canvas.clipPath(Path()..addOval(body));
+    final mark = Paint()..color = dark.withValues(alpha: 0.28);
+    if (style.pattern == 1) {
+      for (var x = 38.0; x < 80; x += 11) {
+        canvas.drawRect(Rect.fromLTWH(x, 9, 5, 30), mark);
+      }
+    } else if (style.pattern == 2) {
+      for (final o in const [
+        Offset(40, 18),
+        Offset(50, 28),
+        Offset(58, 16),
+        Offset(66, 27),
+        Offset(46, 22),
+        Offset(74, 19),
+      ]) {
+        canvas.drawCircle(o, 2.6, mark);
+      }
+    }
+    canvas.restore();
+
+    canvas.drawOval(body, outline);
+
+    // Gill line, eye, mouth.
+    canvas.drawArc(
+      const Rect.fromLTWH(64, 14, 12, 20),
+      2.2,
+      1.8,
+      false,
+      outline,
+    );
+    canvas.drawCircle(const Offset(82, 21), 4.6, Paint()..color = Colors.white);
+    canvas.drawCircle(const Offset(83, 21), 2.3, Paint()..color = Colors.black);
+    canvas.drawCircle(
+      const Offset(83.8, 20.2),
+      0.8,
+      Paint()..color = Colors.white,
+    );
+    canvas.drawLine(const Offset(93, 26), const Offset(88, 27.5), outline);
   }
 
   @override
-  bool shouldRepaint(covariant _FishPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _FishPainter old) =>
+      old.style.top != style.top ||
+      old.style.bottom != style.bottom ||
+      old.style.pattern != style.pattern;
+}
+
+/// Small blue tile with a fish, used on catch rows when there is no photo.
+class FishTile extends StatelessWidget {
+  const FishTile({super.key, required this.species, this.size = 60});
+
+  final String species;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFD3EEF9), Color(0xFF8CC8E3)],
+        ),
+      ),
+      child: FishShape(species: species, width: size * 0.8),
+    );
+  }
 }

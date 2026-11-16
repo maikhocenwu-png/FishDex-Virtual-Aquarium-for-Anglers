@@ -1,51 +1,36 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 // ---------------------------------------------------------------------------
-// Species list (the 25-row starter list, same as supabase/species_seed.sql)
+// Species (loaded from the Supabase `species` table after sign-in)
 // ---------------------------------------------------------------------------
 
 class Species {
-  const Species(this.name, this.latin, this.habitat);
+  const Species(this.id, this.name, this.latin, this.habitat);
+  final int id;
   final String name;
   final String? latin;
   final String habitat; // freshwater, saltwater, brackish, unknown
 }
-
-const kSpecies = <Species>[
-  Species('Unidentified / Other', null, 'unknown'),
-  Species('Largemouth bass', 'Micropterus salmoides', 'freshwater'),
-  Species('Smallmouth bass', 'Micropterus dolomieu', 'freshwater'),
-  Species('Bluegill', 'Lepomis macrochirus', 'freshwater'),
-  Species('Pumpkinseed', 'Lepomis gibbosus', 'freshwater'),
-  Species('Black crappie', 'Pomoxis nigromaculatus', 'freshwater'),
-  Species('Yellow perch', 'Perca flavescens', 'freshwater'),
-  Species('Walleye', 'Sander vitreus', 'freshwater'),
-  Species('Northern pike', 'Esox lucius', 'freshwater'),
-  Species('Chain pickerel', 'Esox niger', 'freshwater'),
-  Species('Channel catfish', 'Ictalurus punctatus', 'freshwater'),
-  Species('Common carp', 'Cyprinus carpio', 'freshwater'),
-  Species('Rainbow trout', 'Oncorhynchus mykiss', 'freshwater'),
-  Species('Brown trout', 'Salmo trutta', 'freshwater'),
-  Species('Brook trout', 'Salvelinus fontinalis', 'freshwater'),
-  Species('White perch', 'Morone americana', 'brackish'),
-  Species('Striped bass', 'Morone saxatilis', 'saltwater'),
-  Species('Bluefish', 'Pomatomus saltatrix', 'saltwater'),
-  Species('Summer flounder (fluke)', 'Paralichthys dentatus', 'saltwater'),
-  Species('Winter flounder', 'Pseudopleuronectes americanus', 'saltwater'),
-  Species('Black sea bass', 'Centropristis striata', 'saltwater'),
-  Species('Scup (porgy)', 'Stenotomus chrysops', 'saltwater'),
-  Species('Tautog', 'Tautoga onitis', 'saltwater'),
-  Species('Weakfish', 'Cynoscion regalis', 'saltwater'),
-  Species('Atlantic mackerel', 'Scomber scombrus', 'saltwater'),
-];
 
 // ---------------------------------------------------------------------------
 // Date helpers (no extra packages)
 // ---------------------------------------------------------------------------
 
 const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String fmtDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';
@@ -58,6 +43,9 @@ String fmtTime(DateTime d) {
 }
 
 String fmtDateTime(DateTime d) => '${fmtDate(d)}, ${fmtTime(d)}';
+
+/// A new unique id, made on the phone before saving (see the plan, B.2).
+String newCatchId() => const Uuid().v4();
 
 // ---------------------------------------------------------------------------
 // A catch (one real fish the angler caught)
@@ -86,7 +74,7 @@ class CatchItem {
   String notes;
   bool hasPhoto;
   bool uploaded;
-  bool fed;
+  bool fed; // true = this catch has a fish in the aquarium
 
   String get subtitle =>
       place.isEmpty ? fmtDate(caughtAt) : '${fmtDate(caughtAt)} - $place';
@@ -100,68 +88,92 @@ class CatchItem {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory store for the demo (nothing is saved after the app closes)
+// The app's data, backed by Supabase
 // ---------------------------------------------------------------------------
 
 class AppStore extends ChangeNotifier {
-  final List<CatchItem> catches = [
-    CatchItem(
-      id: '1',
-      species: 'Largemouth bass',
-      caughtAt: DateTime(2026, 10, 30, 6, 40),
-      place: 'Cunningham Park',
-      length: '38',
-      weight: '0.9',
-      notes: 'Near the dock',
-      hasPhoto: true,
-      uploaded: false,
-      fed: true,
-    ),
-    CatchItem(
-      id: '2',
-      species: 'Bluegill',
-      caughtAt: DateTime(2026, 10, 12, 7, 15),
-      place: 'Flushing Meadows',
-      length: '19',
-      weight: '0.2',
-      hasPhoto: true,
-      uploaded: true,
-      fed: true,
-    ),
-    CatchItem(
-      id: '3',
-      species: 'Striped bass',
-      caughtAt: DateTime(2026, 9, 28, 18, 5),
-      place: 'Jamaica Bay',
-      length: '71',
-      weight: '4.2',
-      hasPhoto: true,
-      uploaded: true,
-      fed: true,
-    ),
-    CatchItem(
-      id: '4',
-      species: 'Yellow perch',
-      caughtAt: DateTime(2026, 9, 15, 8, 30),
-      place: 'Alley Pond Park',
-      length: '24',
-      weight: '0.3',
-      hasPhoto: false,
-      uploaded: true,
-      fed: false,
-    ),
-  ];
+  SupabaseClient get _db => Supabase.instance.client;
 
-  String userName = 'John Doe';
-  String userEmail = 'John.Doe@example.com';
+  List<Species> species = [];
+  List<CatchItem> catches = [];
+  bool loading = false;
+  String? error;
+
+  // Who is signed in.
+  String userName = '';
+  String userEmail = '';
 
   // Privacy switches. A new account shares nothing.
   bool shareLocation = false;
   bool sharePhotos = false;
   bool allowCompare = false;
 
-  void add(CatchItem c) {
+  /// Loads the species list and this user's catches.
+  /// Row Level Security makes sure we only get our own catches.
+  Future<void> loadAll() async {
+    if (loading) return;
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final sp = await _db
+          .from('species')
+          .select('id, common_name, scientific_name, habitat')
+          .order('common_name')
+          .range(0, 999); // Supabase returns at most 1,000 rows per request
+      species = [
+        for (final r in sp)
+          Species(
+            r['id'] as int,
+            r['common_name'] as String,
+            r['scientific_name'] as String?,
+            r['habitat'] as String,
+          ),
+      ];
+      species.sort((a, b) {
+        if (a.name == 'Unidentified / Other') return -1;
+        if (b.name == 'Unidentified / Other') return 1;
+        return a.name.compareTo(b.name);
+      });
+      debugPrint('species loaded: ${species.length}');
+
+      final rows = await _db
+          .from('catches')
+          .select('*, species(common_name)')
+          .order('caught_at', ascending: false);
+      catches = [for (final r in rows) _fromRow(r)];
+    } catch (e) {
+      debugPrint('loadAll error: $e');
+      error = 'Could not load your data. Check your internet.';
+    }
+    loading = false;
+    notifyListeners();
+  }
+
+  /// Saves a new catch. The database then creates its fish by itself.
+  Future<void> addCatch(CatchItem c) async {
+    final sid = _speciesId(c.species);
+    if (sid == null) throw Exception('Unknown species');
+    await _db.from('catches').insert({'id': c.id, ..._toRow(c, sid)});
+    c.uploaded = true;
+    c.fed = true;
     catches.insert(0, c);
+    notifyListeners();
+  }
+
+  /// Saves changes to an existing catch (no duplicate is made).
+  Future<void> updateCatch(CatchItem c) async {
+    final sid = _speciesId(c.species);
+    if (sid == null) throw Exception('Unknown species');
+    await _db.from('catches').update(_toRow(c, sid)).eq('id', c.id);
+    notifyListeners();
+  }
+
+  /// Forget everything (used on sign out so nobody sees the last user's data).
+  void clear() {
+    catches = [];
+    userName = '';
+    userEmail = '';
     notifyListeners();
   }
 
@@ -180,6 +192,46 @@ class AppStore extends ChangeNotifier {
   void setAllowCompare(bool v) {
     allowCompare = v;
     notifyListeners();
+  }
+
+  // --- helpers: convert between the app's CatchItem and a database row -----
+
+  int? _speciesId(String name) {
+    for (final s in species) {
+      if (s.name == name) return s.id;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _toRow(CatchItem c, int speciesId) => {
+    'species_id': speciesId,
+    'caught_at': c.caughtAt.toUtc().toIso8601String(),
+    'location_text': c.place.isEmpty ? null : c.place,
+    'length_cm': double.tryParse(c.length),
+    'weight_kg': double.tryParse(c.weight),
+    'notes': c.notes.isEmpty ? null : c.notes,
+  };
+
+  CatchItem _fromRow(Map<String, dynamic> r) {
+    final sp = r['species'] as Map<String, dynamic>?;
+    return CatchItem(
+      id: r['id'] as String,
+      species: (sp?['common_name'] as String?) ?? 'Unknown',
+      caughtAt: DateTime.parse(r['caught_at'] as String).toLocal(),
+      place: (r['location_text'] as String?) ?? '',
+      length: _numText(r['length_cm']),
+      weight: _numText(r['weight_kg']),
+      notes: (r['notes'] as String?) ?? '',
+      hasPhoto: r['photo_path'] != null,
+      uploaded: true,
+      fed: true,
+    );
+  }
+
+  String _numText(Object? v) {
+    if (v == null) return '';
+    final n = v as num;
+    return n == n.roundToDouble() ? n.toInt().toString() : n.toString();
   }
 }
 

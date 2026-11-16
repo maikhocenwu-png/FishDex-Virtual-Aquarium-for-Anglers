@@ -25,12 +25,15 @@ class ProfileScreen extends StatelessWidget {
                   children: [
                     InfoRow(
                       title: store.userName,
-                      subtitle:
-                          store.userEmail.isEmpty ? null : store.userEmail,
+                      subtitle: store.userEmail.isEmpty
+                          ? null
+                          : store.userEmail,
                     ),
                     const SizedBox(height: 20),
-                    const Text('SHARING (all off by default)',
-                        style: TextStyle(fontSize: 12, color: kMuted)),
+                    const Text(
+                      'SHARING (all off by default)',
+                      style: TextStyle(fontSize: 12, color: kMuted),
+                    ),
                     const SizedBox(height: 8),
                     InfoRow(
                       title: 'Share catch location',
@@ -63,12 +66,14 @@ class ProfileScreen extends StatelessWidget {
                       'Sign out',
                       onTap: () async {
                         try {
+                          store.clear();
                           await Supabase.instance.client.auth.signOut();
                         } catch (_) {}
                         if (context.mounted) {
                           Navigator.of(context).pushAndRemoveUntil(
                             MaterialPageRoute(
-                                builder: (_) => const SignInScreen()),
+                              builder: (_) => const SignInScreen(),
+                            ),
                             (_) => false,
                           );
                         }

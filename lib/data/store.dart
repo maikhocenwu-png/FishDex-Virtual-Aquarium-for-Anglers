@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -60,7 +62,9 @@ class CatchItem {
     this.length = '',
     this.weight = '',
     this.notes = '',
-    this.hasPhoto = false,
+    this.photoPath,
+    this.localPhoto,
+    this.photoSynced = true,
     this.uploaded = false,
     this.fed = false,
   });
@@ -72,9 +76,21 @@ class CatchItem {
   String length;
   String weight;
   String notes;
-  bool hasPhoto;
+
+  /// Where the photo lives in Supabase Storage (null = no uploaded photo).
+  String? photoPath;
+
+  /// A photo file on this phone (picked but maybe not uploaded yet).
+  String? localPhoto;
+
+  /// false = the phone has a photo that still has to be uploaded.
+  bool photoSynced;
+
   bool uploaded;
   bool fed; // true = this catch has a fish in the aquarium
+
+  bool get hasPhoto => photoPath != null || localPhoto != null;
+  bool get needsUpload => localPhoto != null && !photoSynced;
 
   String get subtitle =>
       place.isEmpty ? fmtDate(caughtAt) : '${fmtDate(caughtAt)} - $place';
@@ -94,6 +110,8 @@ class CatchItem {
 class AppStore extends ChangeNotifier {
   SupabaseClient get _db => Supabase.instance.client;
 
+  static const _bucket = 'catch-photos';
+
   List<Species> species = [];
   List<CatchItem> catches = [];
   bool loading = false;
@@ -107,6 +125,9 @@ class AppStore extends ChangeNotifier {
   bool shareLocation = false;
   bool sharePhotos = false;
   bool allowCompare = false;
+
+  // Signed links for private photos, kept for a while so we do not ask twice.
+  final Map<String, (String, DateTime)> _urlCache = {};
 
   /// Loads the species list and this user's catches.
   /// Row Level Security makes sure we only get our own catches.
@@ -151,6 +172,8 @@ class AppStore extends ChangeNotifier {
   }
 
   /// Saves a new catch. The database then creates its fish by itself.
+  /// The catch is saved first; the photo is uploaded after. If the photo
+  /// upload fails, the catch is still saved (c.needsUpload stays true).
   Future<void> addCatch(CatchItem c) async {
     final sid = _speciesId(c.species);
     if (sid == null) throw Exception('Unknown species');
@@ -159,6 +182,10 @@ class AppStore extends ChangeNotifier {
     c.fed = true;
     catches.insert(0, c);
     notifyListeners();
+    if (c.needsUpload) {
+      await _uploadPhoto(c);
+      notifyListeners();
+    }
   }
 
   /// Saves changes to an existing catch (no duplicate is made).
@@ -167,6 +194,60 @@ class AppStore extends ChangeNotifier {
     if (sid == null) throw Exception('Unknown species');
     await _db.from('catches').update(_toRow(c, sid)).eq('id', c.id);
     notifyListeners();
+    if (c.needsUpload) {
+      await _uploadPhoto(c);
+      notifyListeners();
+    }
+  }
+
+  /// Try again to upload a photo that is still waiting. Returns true if done.
+  Future<bool> retryPhoto(CatchItem c) async {
+    final ok = await _uploadPhoto(c);
+    notifyListeners();
+    return ok;
+  }
+
+  /// Uploads the local photo to `catch-photos/<user id>/<catch id>.jpg` and
+  /// writes that path into the catch row. Never throws; returns success.
+  Future<bool> _uploadPhoto(CatchItem c) async {
+    final local = c.localPhoto;
+    final uid = _db.auth.currentUser?.id;
+    if (local == null || uid == null) return false;
+    try {
+      final path = '$uid/${c.id}.jpg';
+      await _db.storage
+          .from(_bucket)
+          .upload(
+            path,
+            File(local),
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: true, // replacing a photo overwrites the same path
+            ),
+          );
+      await _db.from('catches').update({'photo_path': path}).eq('id', c.id);
+      c.photoPath = path;
+      c.photoSynced = true;
+      _urlCache.remove(path);
+      return true;
+    } catch (e) {
+      debugPrint('photo upload error: $e');
+      return false;
+    }
+  }
+
+  /// A temporary link to a private photo (valid 1 hour, we reuse it for 50 min).
+  Future<String?> photoUrl(String path) async {
+    final hit = _urlCache[path];
+    if (hit != null && hit.$2.isAfter(DateTime.now())) return hit.$1;
+    try {
+      final url = await _db.storage.from(_bucket).createSignedUrl(path, 3600);
+      _urlCache[path] = (url, DateTime.now().add(const Duration(minutes: 50)));
+      return url;
+    } catch (e) {
+      debugPrint('signed url error: $e');
+      return null;
+    }
   }
 
   /// Forget everything (used on sign out so nobody sees the last user's data).
@@ -174,6 +255,7 @@ class AppStore extends ChangeNotifier {
     catches = [];
     userName = '';
     userEmail = '';
+    _urlCache.clear();
     notifyListeners();
   }
 
@@ -222,7 +304,7 @@ class AppStore extends ChangeNotifier {
       length: _numText(r['length_cm']),
       weight: _numText(r['weight_kg']),
       notes: (r['notes'] as String?) ?? '',
-      hasPhoto: r['photo_path'] != null,
+      photoPath: r['photo_path'] as String?,
       uploaded: true,
       fed: true,
     );

@@ -199,7 +199,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
         children: [
           TopBar(title: _isEdit ? 'Edit catch' : 'Add a catch', back: 'Cancel'),
           Expanded(
-            child: SingleChildScrollView(
+            child: SafeArea(top: false, child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -261,7 +261,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
                   ),
                 ],
               ),
-            ),
+            )),
           ),
         ],
       ),

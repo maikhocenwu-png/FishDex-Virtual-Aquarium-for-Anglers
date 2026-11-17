@@ -19,7 +19,7 @@ class ShareScreen extends StatelessWidget {
             children: [
               const TopBar(title: 'Share preview', back: '<'),
               Expanded(
-                child: ListView(
+                child: SafeArea(top: false, child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     const Text(
@@ -96,7 +96,7 @@ class ShareScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
+                )),
               ),
             ],
           ),

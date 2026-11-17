@@ -56,7 +56,7 @@ class CompareScreen extends StatelessWidget {
         children: [
           const TopBar(title: 'Compare', back: '<'),
           Expanded(
-            child: ListView(
+            child: SafeArea(top: false, child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 const InfoRow(
@@ -103,7 +103,7 @@ class CompareScreen extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
+            )),
           ),
         ],
       ),

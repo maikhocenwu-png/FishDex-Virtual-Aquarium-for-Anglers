@@ -20,7 +20,7 @@ class ProfileScreen extends StatelessWidget {
             children: [
               const TopBar(title: 'Profile and privacy', back: '<'),
               Expanded(
-                child: ListView(
+                child: SafeArea(top: false, child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     InfoRow(
@@ -80,7 +80,7 @@ class ProfileScreen extends StatelessWidget {
                       },
                     ),
                   ],
-                ),
+                )),
               ),
             ],
           ),

@@ -70,7 +70,7 @@ class _SpeciesPickerScreenState extends State<SpeciesPickerScreen> {
                   ),
                 ),
               Expanded(
-                child: ListView.separated(
+                child: SafeArea(top: false, child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   itemCount: list.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -84,7 +84,7 @@ class _SpeciesPickerScreenState extends State<SpeciesPickerScreen> {
                       onTap: () => Navigator.of(context).pop(s.name),
                     );
                   },
-                ),
+                )),
               ),
             ],
           ),

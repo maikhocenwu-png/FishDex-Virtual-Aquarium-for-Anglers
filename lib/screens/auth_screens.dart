@@ -80,7 +80,7 @@ class _SignInScreenState extends State<SignInScreen> {
         children: [
           const TopBar(title: 'Sign in'),
           Expanded(
-            child: SingleChildScrollView(
+            child: SafeArea(top: false, child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -123,7 +123,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ],
               ),
-            ),
+            )),
           ),
         ],
       ),
@@ -207,7 +207,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         children: [
           const TopBar(title: 'Create account', back: '<'),
           Expanded(
-            child: SingleChildScrollView(
+            child: SafeArea(top: false, child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -242,7 +242,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       onTap: _busy ? null : _create),
                 ],
               ),
-            ),
+            )),
           ),
         ],
       ),

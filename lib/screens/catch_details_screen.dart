@@ -28,10 +28,15 @@ class CatchDetailsScreen extends StatelessWidget {
             children: [
               const TopBar(title: 'Catch details', back: '<'),
               Expanded(
-                child: ListView(
+                child: SafeArea(top: false, child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    CatchPhoto(c, height: 180),
+                    CatchPhoto(
+                      c,
+                      height: 320,
+                      fit: BoxFit.contain,
+                      tapToZoom: true,
+                    ),
                     const SizedBox(height: 14),
                     Text(
                       c.species,
@@ -103,7 +108,7 @@ class CatchDetailsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
+                )),
               ),
             ],
           ),

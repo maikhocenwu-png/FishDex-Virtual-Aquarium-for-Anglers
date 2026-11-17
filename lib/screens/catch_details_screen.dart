@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/store.dart';
+import '../ui/catch_photo.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'add_catch_screen.dart';
@@ -30,10 +31,7 @@ class CatchDetailsScreen extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    PhotoBox(
-                      height: 180,
-                      label: c.hasPhoto ? 'PHOTO' : 'NO PHOTO',
-                    ),
+                    CatchPhoto(c, height: 180),
                     const SizedBox(height: 14),
                     Text(
                       c.species,
@@ -48,7 +46,11 @@ class CatchDetailsScreen extends StatelessWidget {
                       spacing: 8,
                       children: [
                         if (c.fed) const Tag('Fed'),
-                        Tag(c.uploaded ? 'Uploaded' : 'Waiting to upload'),
+                        Tag(
+                          c.uploaded && !c.needsUpload
+                              ? 'Uploaded'
+                              : 'Waiting to upload',
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -74,6 +76,25 @@ class CatchDetailsScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (c.needsUpload) ...[
+                      const SizedBox(height: 10),
+                      OutlinePill(
+                        'Retry photo upload',
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final ok = await store.retryPhoto(c);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? 'Photo uploaded'
+                                    : 'Still could not upload. Check your internet.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     OutlinePill(
                       'Share',

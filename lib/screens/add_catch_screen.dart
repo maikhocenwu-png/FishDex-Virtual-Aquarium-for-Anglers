@@ -1,6 +1,11 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show ImageSource;
+
+import '../data/photo_service.dart';
 import '../data/store.dart';
+import '../ui/catch_photo.dart';
 import '../ui/widgets.dart';
 import 'species_picker_screen.dart';
 
@@ -17,7 +22,8 @@ class AddCatchScreen extends StatefulWidget {
 class _AddCatchScreenState extends State<AddCatchScreen> {
   late String? _species;
   late DateTime _when;
-  late bool _hasPhoto;
+  late final String _id; // made now so the photo file can be named after it
+  String? _localPhoto; // a photo picked on this screen
   bool _saving = false;
   late final TextEditingController _place;
   late final TextEditingController _length;
@@ -32,7 +38,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
     final e = widget.editing;
     _species = e?.species;
     _when = e?.caughtAt ?? DateTime.now();
-    _hasPhoto = e?.hasPhoto ?? false;
+    _id = e?.id ?? newCatchId();
     _place = TextEditingController(text: e?.place ?? '');
     _length = TextEditingController(text: e?.length ?? '');
     _weight = TextEditingController(text: e?.weight ?? '');
@@ -53,6 +59,55 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
       MaterialPageRoute(builder: (_) => const SpeciesPickerScreen()),
     );
     if (picked != null) setState(() => _species = picked);
+  }
+
+  Future<void> _choosePhoto() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final path = await PhotoService.pick(source, _id);
+      if (path != null && mounted) setState(() => _localPhoto = path);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the camera or gallery')),
+      );
+    }
+  }
+
+  Widget _photoPreview() {
+    if (_localPhoto != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(_localPhoto!),
+          height: 150,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+    final e = widget.editing;
+    if (e != null && e.hasPhoto) return CatchPhoto(e, height: 150);
+    return PhotoBox(height: 150, label: 'TAP TO ADD PHOTO');
   }
 
   Future<void> _pickDate() async {
@@ -78,6 +133,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
     }
     setState(() => _saving = true);
     final e = widget.editing;
+    late final CatchItem saved;
     try {
       if (e != null) {
         e.species = _species!;
@@ -86,32 +142,39 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
         e.length = _length.text.trim();
         e.weight = _weight.text.trim();
         e.notes = _notes.text.trim();
-        e.hasPhoto = _hasPhoto;
+        if (_localPhoto != null) {
+          e.localPhoto = _localPhoto;
+          e.photoSynced = false; // needs uploading
+        }
         await store.updateCatch(e);
+        saved = e;
       } else {
-        await store.addCatch(
-          CatchItem(
-            id: newCatchId(),
-            species: _species!,
-            caughtAt: _when,
-            place: _place.text.trim(),
-            length: _length.text.trim(),
-            weight: _weight.text.trim(),
-            notes: _notes.text.trim(),
-            hasPhoto: _hasPhoto,
-          ),
+        saved = CatchItem(
+          id: _id,
+          species: _species!,
+          caughtAt: _when,
+          place: _place.text.trim(),
+          length: _length.text.trim(),
+          weight: _weight.text.trim(),
+          notes: _notes.text.trim(),
+          localPhoto: _localPhoto,
+          photoSynced: _localPhoto == null,
         );
+        await store.addCatch(saved);
         homeTab.value = 0;
       }
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
+      final photoWaiting = saved.needsUpload;
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            _isEdit
-                ? 'Changes saved'
-                : 'Saved. A new fish joined your aquarium!',
+            photoWaiting
+                ? 'Saved, but the photo did not upload. Open the catch to retry.'
+                : (_isEdit
+                      ? 'Changes saved'
+                      : 'Saved. A new fish joined your aquarium!'),
           ),
         ),
       );
@@ -141,13 +204,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _hasPhoto = !_hasPhoto),
-                    child: PhotoBox(
-                      height: 150,
-                      label: _hasPhoto ? 'PHOTO ADDED' : 'TAP TO ADD PHOTO',
-                    ),
-                  ),
+                  GestureDetector(onTap: _choosePhoto, child: _photoPreview()),
                   const FieldLabel('Species'),
                   PickField(
                     _species ?? 'Choose a species',

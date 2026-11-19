@@ -1,8 +1,12 @@
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+
+import 'local_db.dart';
 
 // ---------------------------------------------------------------------------
 // Species (loaded from the Supabase `species` table after sign-in)
@@ -67,6 +71,7 @@ class CatchItem {
     this.photoSynced = true,
     this.uploaded = false,
     this.fed = false,
+    this.dirty = false,
   });
 
   final String id;
@@ -88,6 +93,12 @@ class CatchItem {
 
   bool uploaded;
   bool fed; // true = this catch has a fish in the aquarium
+
+  /// true = edited on the phone, the changes are not saved online yet.
+  bool dirty;
+
+  /// true = something about this catch still has to reach Supabase.
+  bool get waiting => !uploaded || dirty || needsUpload;
 
   bool get hasPhoto => photoPath != null || localPhoto != null;
   bool get needsUpload => localPhoto != null && !photoSynced;
@@ -129,14 +140,133 @@ class AppStore extends ChangeNotifier {
   // Signed links for private photos, kept for a while so we do not ask twice.
   final Map<String, (String, DateTime)> _urlCache = {};
 
-  /// Loads the species list and this user's catches.
+  // --- local copy on the phone ---------------------------------------------
+
+  // The database on the phone (SQLite through Drift). Opens on first use.
+  final LocalDb _local = LocalDb();
+
+  void _sortSpecies() {
+    species.sort((a, b) {
+      if (a.name == 'Unidentified / Other') return -1;
+      if (b.name == 'Unidentified / Other') return 1;
+      return a.name.compareTo(b.name);
+    });
+  }
+
+  /// Writes the species and this account's catches into the phone database.
+  Future<void> _saveCache() async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      await _local.transaction(() async {
+        await _local.delete(_local.localSpecies).go();
+        await (_local.delete(
+          _local.localCatches,
+        )..where((t) => t.userId.equals(uid))).go();
+        await _local.batch((b) {
+          b.insertAll(_local.localSpecies, [
+            for (final s in species)
+              LocalSpeciesCompanion.insert(
+                id: Value(s.id),
+                name: s.name,
+                latin: Value(s.latin),
+                habitat: s.habitat,
+              ),
+          ]);
+          b.insertAll(_local.localCatches, [
+            for (final c in catches)
+              LocalCatchesCompanion.insert(
+                id: c.id,
+                userId: uid,
+                species: c.species,
+                caughtAt: c.caughtAt,
+                place: c.place,
+                length: c.length,
+                weight: c.weight,
+                notes: c.notes,
+                photoPath: Value(c.photoPath),
+                localPhoto: Value(c.localPhoto),
+                photoSynced: c.photoSynced,
+                uploaded: c.uploaded,
+                fed: c.fed,
+                dirty: c.dirty,
+              ),
+          ]);
+        });
+      });
+    } catch (e) {
+      debugPrint('save cache error: $e');
+    }
+  }
+
+  /// Reads the phone database, so the app has data even with no internet.
+  Future<void> loadCache() async {
+    final uid = _db.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      final sp = await _local.select(_local.localSpecies).get();
+      final rows = await (_local.select(
+        _local.localCatches,
+      )..where((t) => t.userId.equals(uid))).get();
+      species = [for (final r in sp) Species(r.id, r.name, r.latin, r.habitat)];
+      _sortSpecies();
+      catches = [
+        for (final r in rows)
+          CatchItem(
+            id: r.id,
+            species: r.species,
+            caughtAt: r.caughtAt,
+            place: r.place,
+            length: r.length,
+            weight: r.weight,
+            notes: r.notes,
+            photoPath: r.photoPath,
+            localPhoto: r.localPhoto,
+            photoSynced: r.photoSynced,
+            uploaded: r.uploaded,
+            fed: r.fed,
+            dirty: r.dirty,
+          ),
+      ]..sort((a, b) => b.caughtAt.compareTo(a.caughtAt));
+      notifyListeners();
+    } catch (e) {
+      debugPrint('load cache error: $e');
+    }
+  }
+
+  String? _cacheUid; // whose saved copy is loaded in memory
+
+  // When the phone gets internet back, sync by itself.
+  bool _autoSync = false;
+
+  void _startAutoSync() {
+    if (_autoSync) return;
+    _autoSync = true;
+    Connectivity().onConnectivityChanged.listen((results) {
+      final online = results.any((r) => r != ConnectivityResult.none);
+      if (online && _db.auth.currentUser != null) loadAll();
+    });
+  }
+
+  // --- loading and saving ---------------------------------------------------
+
+  /// Shows the saved copy at once, sends anything waiting to Supabase, then
+  /// refreshes from Supabase. With no internet you keep seeing the saved copy.
   /// Row Level Security makes sure we only get our own catches.
   Future<void> loadAll() async {
     if (loading) return;
+    _startAutoSync();
     loading = true;
     error = null;
     notifyListeners();
+    final uid = _db.auth.currentUser?.id;
+    if (_cacheUid != uid) {
+      _cacheUid = uid; // read this account's saved copy once per sign-in
+      await loadCache();
+    }
     try {
+      await _syncPending(); // never throws
+
       final sp = await _db
           .from('species')
           .select('id, common_name, scientific_name, habitat')
@@ -151,60 +281,140 @@ class AppStore extends ChangeNotifier {
             r['habitat'] as String,
           ),
       ];
-      species.sort((a, b) {
-        if (a.name == 'Unidentified / Other') return -1;
-        if (b.name == 'Unidentified / Other') return 1;
-        return a.name.compareTo(b.name);
-      });
+      _sortSpecies();
       debugPrint('species loaded: ${species.length}');
 
       final rows = await _db
           .from('catches')
           .select('*, species(common_name)')
           .order('caught_at', ascending: false);
-      catches = [for (final r in rows) _fromRow(r)];
+
+      final old = {for (final c in catches) c.id: c};
+      final fresh = <CatchItem>[];
+      for (final r in rows) {
+        final item = _fromRow(r);
+        final o = old[item.id];
+        if (o != null) {
+          if (o.dirty) {
+            fresh.add(o); // keep edits that are not online yet
+            continue;
+          }
+          if (o.localPhoto != null) {
+            item.localPhoto = o.localPhoto;
+            item.photoSynced = o.photoSynced;
+          }
+        }
+        fresh.add(item);
+      }
+      // catches saved on the phone that Supabase does not have yet
+      final serverIds = {for (final c in fresh) c.id};
+      final pending = catches.where(
+        (c) => !c.uploaded && !serverIds.contains(c.id),
+      );
+      catches = [...pending, ...fresh]
+        ..sort((a, b) => b.caughtAt.compareTo(a.caughtAt));
+      await _saveCache();
     } catch (e) {
       debugPrint('loadAll error: $e');
-      error = 'Could not load your data. Check your internet.';
+      error = catches.isEmpty
+          ? 'Could not load your data. Check your internet.'
+          : 'Offline. Showing what is saved on your phone.';
     }
     loading = false;
     notifyListeners();
   }
 
-  /// Saves a new catch. The database then creates its fish by itself.
-  /// The catch is saved first; the photo is uploaded after. If the photo
-  /// upload fails, the catch is still saved (c.needsUpload stays true).
+  /// Saves a new catch ON THE PHONE first, then sends it to Supabase. With no
+  /// internet it stays on the phone (c.waiting) and syncs later.
+  /// The database creates the fish by itself once the catch arrives.
   Future<void> addCatch(CatchItem c) async {
-    final sid = _speciesId(c.species);
-    if (sid == null) throw Exception('Unknown species');
-    await _db.from('catches').insert({'id': c.id, ..._toRow(c, sid)});
-    c.uploaded = true;
-    c.fed = true;
+    if (_speciesId(c.species) == null) throw Exception('Unknown species');
+    c.uploaded = false;
+    c.fed = false;
     catches.insert(0, c);
     notifyListeners();
-    if (c.needsUpload) {
-      await _uploadPhoto(c);
+    await _saveCache();
+    try {
+      await _syncOne(c);
+    } on PostgrestException {
+      // The database refused it (for example length 0). Do not keep it.
+      catches.remove(c);
       notifyListeners();
+      await _saveCache();
+      rethrow;
+    } catch (e) {
+      debugPrint('saved on the phone only: $e'); // no internet
     }
+    notifyListeners();
+    await _saveCache();
   }
 
   /// Saves changes to an existing catch (no duplicate is made).
   Future<void> updateCatch(CatchItem c) async {
-    final sid = _speciesId(c.species);
-    if (sid == null) throw Exception('Unknown species');
-    await _db.from('catches').update(_toRow(c, sid)).eq('id', c.id);
+    if (_speciesId(c.species) == null) throw Exception('Unknown species');
+    c.dirty = true;
     notifyListeners();
-    if (c.needsUpload) {
-      await _uploadPhoto(c);
-      notifyListeners();
+    await _saveCache();
+    try {
+      await _syncOne(c);
+    } on PostgrestException {
+      c.dirty = false; // refused; the screen reloads the real data
+      rethrow;
+    } catch (e) {
+      debugPrint('edit kept on the phone only: $e'); // no internet
     }
+    notifyListeners();
+    await _saveCache();
   }
 
-  /// Try again to upload a photo that is still waiting. Returns true if done.
+  /// Try again to send everything that is waiting. Returns true if done.
   Future<bool> retryPhoto(CatchItem c) async {
-    final ok = await _uploadPhoto(c);
+    try {
+      await _syncOne(c);
+    } catch (e) {
+      debugPrint('retry error: $e');
+    }
     notifyListeners();
-    return ok;
+    await _saveCache();
+    return !c.waiting;
+  }
+
+  /// Sends one catch's waiting parts: the new row, or the edits, then the photo.
+  /// Throws if there is no internet or the database refuses.
+  Future<void> _syncOne(CatchItem c) async {
+    final sid = _speciesId(c.species);
+    if (sid == null) return;
+    if (!c.uploaded) {
+      await _db.from('catches').insert({'id': c.id, ..._toRow(c, sid)});
+      c.uploaded = true;
+      c.fed = true;
+      c.dirty = false;
+    } else if (c.dirty) {
+      await _db.from('catches').update(_toRow(c, sid)).eq('id', c.id);
+      c.dirty = false;
+    }
+    if (c.needsUpload) await _uploadPhoto(c);
+  }
+
+  /// Sends everything that is waiting. Stops quietly if there is no internet.
+  Future<void> _syncPending() async {
+    for (final c in List.of(catches)) {
+      if (!c.waiting) continue;
+      try {
+        await _syncOne(c);
+      } on PostgrestException catch (e) {
+        // 23505 = this id is already there (an earlier send actually worked).
+        if (e.code == '23505') {
+          c.uploaded = true;
+          c.fed = true;
+        }
+        debugPrint('sync refused: ${e.message}');
+      } catch (e) {
+        debugPrint('sync stopped (offline?): $e');
+        break;
+      }
+    }
+    await _saveCache();
   }
 
   /// Uploads the local photo to `catch-photos/<user id>/<catch id>.jpg` and
@@ -256,6 +466,7 @@ class AppStore extends ChangeNotifier {
     userName = '';
     userEmail = '';
     _urlCache.clear();
+    _cacheUid = null;
     notifyListeners();
   }
 

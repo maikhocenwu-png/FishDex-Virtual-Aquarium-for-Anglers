@@ -52,9 +52,7 @@ class CatchDetailsScreen extends StatelessWidget {
                       children: [
                         if (c.fed) const Tag('Fed'),
                         Tag(
-                          c.uploaded && !c.needsUpload
-                              ? 'Uploaded'
-                              : 'Waiting to upload',
+                          !c.waiting ? 'Uploaded' : 'Waiting to upload',
                         ),
                       ],
                     ),
@@ -81,10 +79,10 @@ class CatchDetailsScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (c.needsUpload) ...[
+                    if (c.waiting) ...[
                       const SizedBox(height: 10),
                       OutlinePill(
-                        'Retry photo upload',
+                        'Retry upload',
                         onTap: () async {
                           final messenger = ScaffoldMessenger.of(context);
                           final ok = await store.retryPhoto(c);
@@ -92,8 +90,8 @@ class CatchDetailsScreen extends StatelessWidget {
                             SnackBar(
                               content: Text(
                                 ok
-                                    ? 'Photo uploaded'
-                                    : 'Still could not upload. Check your internet.',
+                                    ? 'Uploaded'
+                                    : 'Still offline. It will upload when you are back online.',
                               ),
                             ),
                           );

@@ -166,12 +166,12 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
-      final photoWaiting = saved.needsUpload;
+      final photoWaiting = saved.waiting;
       messenger.showSnackBar(
         SnackBar(
           content: Text(
             photoWaiting
-                ? 'Saved, but the photo did not upload. Open the catch to retry.'
+                ? 'Saved on your phone. It will upload when you are back online.'
                 : (_isEdit
                       ? 'Changes saved'
                       : 'Saved. A new fish joined your aquarium!'),

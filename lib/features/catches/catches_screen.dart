@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // In Milestone 2 and 5, we will builds this screen.
 class CatchesScreen extends StatelessWidget {

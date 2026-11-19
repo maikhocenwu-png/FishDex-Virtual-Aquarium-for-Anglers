@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // In P2, we will builds this screen.
 class AquariumScreen extends StatelessWidget {

@@ -49,3 +49,6 @@ app.*.map.json
 
 
 env.json
+
+# Visual Studio
+.vs/

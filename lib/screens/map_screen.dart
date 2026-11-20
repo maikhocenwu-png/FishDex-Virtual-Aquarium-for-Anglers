@@ -4,10 +4,10 @@ import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 
-import '../data/store.dart';
+// import '../data/store.dart';
 import '../ui/theme.dart';
-import '../ui/widgets.dart';
-import 'catch_details_screen.dart';
+// import '../ui/widgets.dart';
+// import 'catch_details_screen.dart';
 
 /// A.6 Map. For the demo the map is a drawn placeholder with pins.
 class MapScreen extends StatefulWidget {
@@ -38,13 +38,11 @@ class _MapScreenState extends State<MapScreen> {
     // listen for location and update it
 
     _location.onLocationChanged.listen((LocationData locationData) {
-      if(locationData.latitude != null && locationData.longitude != null) {
         setState(() {
           _currentLocation = LatLng(locationData.latitude, locationData.longitude);
           isLoading = false;
         });
         _centerOnCurrentLocation();
-      }
     });
   }
 

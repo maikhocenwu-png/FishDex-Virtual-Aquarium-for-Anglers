@@ -40,7 +40,7 @@ class _MapScreenState extends State<MapScreen> {
     _location.onLocationChanged.listen((LocationData locationData) {
       if(locationData.latitude != null && locationData.longitude != null) {
         setState(() {
-          _currentLocation = LatLng(locationData.latitude!, locationData.longitude!);
+          _currentLocation = LatLng(locationData.latitude, locationData.longitude);
           isLoading = false;
         });
         _centerOnCurrentLocation();
@@ -74,7 +74,7 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  @override
+
 
 
   void _centerOnCurrentLocation() {
@@ -84,7 +84,8 @@ class _MapScreenState extends State<MapScreen> {
     _didCenterOnLocation = true;
     mapControl.move(location, 15);
   }
-
+    
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -113,13 +114,7 @@ class _MapScreenState extends State<MapScreen> {
               ), // Tile Layer
               CurrentLocationLayer(
                 style: LocationMarkerStyle(
-                  marker: DefaultLocationMarker(
-                    child: Icon(
-                      Icons.location_pin,
-                      color: Colors.white,
-                    ), // Icon
-                  ), // DefaultLocationMarker
-                  markerSize: Size(35, 35),
+                  markerSize: Size(20, 20),
                   markerDirection: MarkerDirection.heading,
                 ), // LocationMarkerStyle
               ), // CurrentLocationLayer

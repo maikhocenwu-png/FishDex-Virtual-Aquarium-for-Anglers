@@ -20,7 +20,6 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final MapController mapControl = MapController();
   final Location _location = Location();
-  final TextEditingController _locationController = TextEditingController();
   bool isLoading = true;
   bool _mapReady = false;
   bool _didCenterOnLocation = false;

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../data/store.dart';
 import '../ui/theme.dart';
@@ -19,11 +19,13 @@ class ShareScreen extends StatelessWidget {
             children: [
               const TopBar(title: 'Share preview', back: '<'),
               Expanded(
-                child: ListView(
+                child: SafeArea(top: false, child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    const Text('This is what your friends will see',
-                        style: TextStyle(fontSize: 13, color: kMuted)),
+                    const Text(
+                      'This is what your friends will see',
+                      style: TextStyle(fontSize: 13, color: kMuted),
+                    ),
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -34,11 +36,14 @@ class ShareScreen extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          const Text('My FishDex aquarium',
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: kInk)),
+                          const Text(
+                            'My FishDex aquarium',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: kInk,
+                            ),
+                          ),
                           const SizedBox(height: 16),
                           Wrap(
                             alignment: WrapAlignment.center,
@@ -48,18 +53,21 @@ class ShareScreen extends StatelessWidget {
                               for (final c in fish.take(4))
                                 Column(
                                   children: [
-                                    const FishShape(),
+                                    FishShape(species: c.species),
                                     const SizedBox(height: 4),
-                                    Text(c.species,
-                                        style: const TextStyle(fontSize: 11)),
+                                    Text(
+                                      c.species,
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
                                   ],
                                 ),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text('${fish.length} fish',
-                              style:
-                                  const TextStyle(fontSize: 13, color: kMuted)),
+                          Text(
+                            '${fish.length} fish',
+                            style: const TextStyle(fontSize: 13, color: kMuted),
+                          ),
                         ],
                       ),
                     ),
@@ -88,7 +96,7 @@ class ShareScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
+                )),
               ),
             ],
           ),

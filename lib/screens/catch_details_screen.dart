@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../data/store.dart';
+import '../ui/catch_photo.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'add_catch_screen.dart';
@@ -27,12 +28,14 @@ class CatchDetailsScreen extends StatelessWidget {
             children: [
               const TopBar(title: 'Catch details', back: '<'),
               Expanded(
-                child: ListView(
+                child: SafeArea(top: false, child: ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    PhotoBox(
-                      height: 180,
-                      label: c.hasPhoto ? 'PHOTO' : 'NO PHOTO',
+                    CatchPhoto(
+                      c,
+                      height: 320,
+                      fit: BoxFit.contain,
+                      tapToZoom: true,
                     ),
                     const SizedBox(height: 14),
                     Text(
@@ -48,7 +51,9 @@ class CatchDetailsScreen extends StatelessWidget {
                       spacing: 8,
                       children: [
                         if (c.fed) const Tag('Fed'),
-                        Tag(c.uploaded ? 'Uploaded' : 'Waiting to upload'),
+                        Tag(
+                          !c.waiting ? 'Uploaded' : 'Waiting to upload',
+                        ),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -74,6 +79,25 @@ class CatchDetailsScreen extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (c.waiting) ...[
+                      const SizedBox(height: 10),
+                      OutlinePill(
+                        'Retry upload',
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final ok = await store.retryPhoto(c);
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                ok
+                                    ? 'Uploaded'
+                                    : 'Still offline. It will upload when you are back online.',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     OutlinePill(
                       'Share',
@@ -82,7 +106,7 @@ class CatchDetailsScreen extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
+                )),
               ),
             ],
           ),

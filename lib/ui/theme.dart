@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Colors taken from the Figma wireframes (plain grays).
 const kInk = Color(0xFF222222);

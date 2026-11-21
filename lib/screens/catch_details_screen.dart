@@ -100,9 +100,11 @@ class CatchDetailsScreen extends StatelessWidget {
                     ],
                     const SizedBox(height: 10),
                     OutlinePill(
-                      'Share',
+                      'Share this catch',
                       onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const ShareScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => ShareScreen(catchId: c.id),
+                        ),
                       ),
                     ),
                   ],

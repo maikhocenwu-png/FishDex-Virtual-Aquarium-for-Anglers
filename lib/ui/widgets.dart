@@ -62,26 +62,29 @@ class TopBar extends StatelessWidget {
 
 /// Big dark pill button (main action).
 class DarkButton extends StatelessWidget {
-  const DarkButton(this.label, {super.key, this.onTap});
+  const DarkButton(this.label, {super.key, this.onTap, this.enabled = true});
 
   final String label;
   final VoidCallback? onTap;
 
+  /// false = the main action is not possible yet, so the button is gray.
+  final bool enabled;
+
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: kDark,
+      color: enabled ? kDark : kTag,
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
+        onTap: enabled ? onTap : null,
         child: SizedBox(
           height: 48,
           child: Center(
             child: Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: enabled ? Colors.white : kMuted,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),

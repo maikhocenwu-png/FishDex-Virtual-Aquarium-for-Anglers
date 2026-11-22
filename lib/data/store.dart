@@ -72,12 +72,16 @@ class CatchItem {
     this.uploaded = false,
     this.fed = false,
     this.dirty = false,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
   String species;
   DateTime caughtAt;
   String place;
+  double? latitude;
+  double? longitude;
   String length;
   String weight;
   String notes;
@@ -184,6 +188,8 @@ class AppStore extends ChangeNotifier {
                 length: c.length,
                 weight: c.weight,
                 notes: c.notes,
+                latitude: Value(c.latitude),
+                longitude: Value(c.longitude),
                 photoPath: Value(c.photoPath),
                 localPhoto: Value(c.localPhoto),
                 photoSynced: c.photoSynced,
@@ -220,6 +226,8 @@ class AppStore extends ChangeNotifier {
             length: r.length,
             weight: r.weight,
             notes: r.notes,
+            latitude: r.latitude,
+            longitude: r.longitude,
             photoPath: r.photoPath,
             localPhoto: r.localPhoto,
             photoSynced: r.photoSynced,
@@ -500,6 +508,8 @@ class AppStore extends ChangeNotifier {
     'species_id': speciesId,
     'caught_at': c.caughtAt.toUtc().toIso8601String(),
     'location_text': c.place.isEmpty ? null : c.place,
+    'latitude': c.latitude,
+    'longitude': c.longitude,
     'length_cm': double.tryParse(c.length),
     'weight_kg': double.tryParse(c.weight),
     'notes': c.notes.isEmpty ? null : c.notes,
@@ -512,6 +522,8 @@ class AppStore extends ChangeNotifier {
       species: (sp?['common_name'] as String?) ?? 'Unknown',
       caughtAt: DateTime.parse(r['caught_at'] as String).toLocal(),
       place: (r['location_text'] as String?) ?? '',
+      latitude: (r['latitude'] as num?)?.toDouble(),
+      longitude: (r['longitude'] as num?)?.toDouble(),
       length: _numText(r['length_cm']),
       weight: _numText(r['weight_kg']),
       notes: (r['notes'] as String?) ?? '',

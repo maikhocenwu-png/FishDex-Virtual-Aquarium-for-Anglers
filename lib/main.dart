@@ -24,7 +24,7 @@ Future<void> main() async {
     store.userName = (name != null && name.isNotEmpty)
         ? name
         : email.split('@').first;
-    store.loadAll();
+    await store.loadAll();
     start = const HomeScreen();
   }
 

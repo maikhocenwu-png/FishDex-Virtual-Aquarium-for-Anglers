@@ -28,6 +28,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
   double? _latitude;
   double? _longitude;
   bool _saving = false;
+  bool _gettingLocation = false;
   late final TextEditingController _place;
   late final TextEditingController _length;
   late final TextEditingController _weight;
@@ -130,6 +131,9 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
   }
 
   Future<void> _useCurrentLocation() async {
+    if (_gettingLocation) return;
+    setState(() => _gettingLocation = true);
+
     final location = Location();
 
     try {
@@ -160,18 +164,24 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
       final result = await location.getLocation();
       if (result.latitude == null || result.longitude == null) return;
 
-      setState(() {
-        _latitude = result.latitude;
-        _longitude = result.longitude;
-      });
+      if (mounted) {
+        setState(() {
+          _latitude = result.latitude;
+          _longitude = result.longitude;
+        });
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Could not get location. You can enter a place instead.'),
+            content: Text(
+              'Could not get location. You can enter a place instead.',
+            ),
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _gettingLocation = false);
     }
   }
 
@@ -271,10 +281,18 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
                   const FieldLabel('Place'),
                   AppField(controller: _place, hint: 'Where did you catch it?'),
                   TextButton.icon(
-                    onPressed: _useCurrentLocation,
-                    icon: const Icon(Icons.my_location),
+                    onPressed: _gettingLocation ? null : _useCurrentLocation,
+                    icon: _gettingLocation
+                        ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : const Icon(Icons.my_location),
                     label: Text(
-                      _latitude == null
+                      _gettingLocation
+                          ? 'Getting location...'
+                          : _latitude == null
                           ? 'Use current location (optional)'
                           : 'Location added • Tap to update',
                     ),

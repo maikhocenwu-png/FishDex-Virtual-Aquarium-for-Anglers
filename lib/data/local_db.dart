@@ -54,8 +54,12 @@ class LocalDb extends _$LocalDb {
   MigrationStrategy get migration => MigrationStrategy(
     onUpgrade: (m, from, to) async {
       if (from < 2) {
-        await m.addColumn(localCatches, localCatches.latitude);
-        await m.addColumn(localCatches, localCatches.longitude);
+        await m.issueCustomQuery(
+          'ALTER TABLE local_catches ADD COLUMN latitude REAL',
+        );
+        await m.issueCustomQuery(
+          'ALTER TABLE local_catches ADD COLUMN longitude REAL',
+        );
       }
     },
   );

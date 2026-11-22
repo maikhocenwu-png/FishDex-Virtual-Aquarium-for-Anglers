@@ -8,7 +8,6 @@ import 'package:location/location.dart';
 
 import 'catch_details_screen.dart';
 import '../data/store.dart';
-import '../ui/theme.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -38,22 +37,6 @@ class _MapScreenState extends State<MapScreen> {
     },
   ];
 
-  List<CatchItem> get _visibleCatches {
-    final query = _searchQuery.trim().toLowerCase();
-
-    return store.catches.where((c) {
-      if (c.latitude == null || c.longitude == null) return false;
-
-      final matchesCategory =
-          _selectedCategory == 'All' || c.species == _selectedCategory;
-      final matchesSearch = query.isEmpty ||
-          c.species.toLowerCase().contains(query) ||
-          c.place.toLowerCase().contains(query);
-
-      return matchesCategory && matchesSearch;
-    }).toList();
-  }
-
   @override
   void initState() {
     super.initState();
@@ -72,8 +55,6 @@ class _MapScreenState extends State<MapScreen> {
         _location.onLocationChanged.listen((locationData) {
           final latitude = locationData.latitude;
           final longitude = locationData.longitude;
-
-          if (latitude == null || longitude == null || !mounted) return;
 
           setState(() {
             _currentLocation = LatLng(latitude, longitude);
@@ -136,25 +117,21 @@ class _MapScreenState extends State<MapScreen> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
-        final catchesWithLocation = store.catches.where((c) {
-          return c.latitude != null && c.longitude != null;
-        }).toList();
+        final query = _searchQuery.trim().toLowerCase();
 
-        final categories = [
-          'All',
-          ...{for (final c in catchesWithLocation) c.species},
-        ];
-
-        final visibleCatches = catchesWithLocation.where((c) {
+        final visibleCatches = store.catches.where((c) {
           final matchesCategory =
               _selectedCategory == 'All' || c.species == _selectedCategory;
-          final query = _searchQuery.trim().toLowerCase();
           final matchesSearch = query.isEmpty ||
               c.species.toLowerCase().contains(query) ||
               c.place.toLowerCase().contains(query);
 
           return matchesCategory && matchesSearch;
         }).toList();
+
+        final catchesWithLocation = visibleCatches.where(
+              (c) => c.latitude != null && c.longitude != null,
+        );
 
         return Scaffold(
           appBar: AppBar(
@@ -200,7 +177,7 @@ class _MapScreenState extends State<MapScreen> {
                     userAgentPackageName: 'com.fishdexteam.fishdex',
                   ),
                   MarkerLayer(
-                    markers: visibleCatches.map((c) {
+                    markers: catchesWithLocation.map((c) {
                       return Marker(
                         point: LatLng(c.latitude!, c.longitude!),
                         width: 110,

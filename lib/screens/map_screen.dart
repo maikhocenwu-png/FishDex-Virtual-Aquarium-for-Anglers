@@ -1,15 +1,14 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 
-// import '../data/store.dart';
-import '../ui/theme.dart';
-// import '../ui/widgets.dart';
-// import 'catch_details_screen.dart';
+import 'catch_details_screen.dart';
+import '../data/store.dart';
 
-/// A.6 Map. For the demo the map is a drawn placeholder with pins.
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -20,231 +19,325 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final MapController mapControl = MapController();
   final Location _location = Location();
+  StreamSubscription<LocationData>? _locationSubscription;
+
   bool isLoading = true;
   bool _mapReady = false;
   bool _didCenterOnLocation = false;
   LatLng? _currentLocation;
+  String _searchQuery = '';
+
+  String _selectedCategory = 'All';
+
+  List<String> get _categories => [
+    'All',
+    ...{
+      for (final c in store.catches)
+        if (c.latitude != null && c.longitude != null) c.species,
+    },
+  ];
 
   @override
-
   void initState() {
     super.initState();
     _initializeLocation();
   }
 
-  Future <void> _initializeLocation() async {
-    if (!await _checktheRequestPermissions()) return;
-    // listen for location and update it
+  Future<void> _initializeLocation() async {
+    final permitted = await _checktheRequestPermissions();
 
-    _location.onLocationChanged.listen((LocationData locationData) {
-        setState(() {
-          _currentLocation = LatLng(locationData.latitude, locationData.longitude);
-          isLoading = false;
+    if (!permitted || !mounted) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    _locationSubscription =
+        _location.onLocationChanged.listen((locationData) {
+          final latitude = locationData.latitude;
+          final longitude = locationData.longitude;
+
+          setState(() {
+            _currentLocation = LatLng(latitude, longitude);
+            isLoading = false;
+          });
+
+          _centerOnCurrentLocation();
         });
-        _centerOnCurrentLocation();
-    });
   }
 
-  Future <bool> _checktheRequestPermissions() async {
-    bool serviceEnabled = await _location.serviceEnabled();
+  Future<bool> _checktheRequestPermissions() async {
+    var serviceEnabled = await _location.serviceEnabled();
+
     if (!serviceEnabled) {
       serviceEnabled = await _location.requestService();
-      if( !serviceEnabled) return false;
+      if (!serviceEnabled) return false;
     }
-    PermissionStatus permissionGranted = await _location.hasPermission();
-    if(permissionGranted == PermissionStatus.denied) {
+
+    var permissionGranted = await _location.hasPermission();
+
+    if (permissionGranted == PermissionStatus.denied) {
       permissionGranted = await _location.requestPermission();
-      if(permissionGranted != PermissionStatus.granted) return false;
     }
-    return true;
+
+    return permissionGranted == PermissionStatus.granted ||
+        permissionGranted == PermissionStatus.grantedLimited;
   }
 
-  Future <void> _userCurrentLocation() async {
-    if(_currentLocation != null) {
-      mapControl.move(_currentLocation!, 15);
+  void _userCurrentLocation() {
+    final location = _currentLocation;
+
+    if (location != null && _mapReady) {
+      mapControl.move(location, 15);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Current Location Not Avaliable."),
-        ), // SnackBar
+          content: Text('Current location not available.'),
+        ),
       );
     }
   }
 
-
-
-
   void _centerOnCurrentLocation() {
     final location = _currentLocation;
+
     if (!_mapReady || location == null || _didCenterOnLocation) return;
 
     _didCenterOnLocation = true;
     mapControl.move(location, 15);
   }
-    
+
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        foregroundColor: Color(0xFFEDEDED),
-        title:const Text("Map"),
-        backgroundColor: kMuted,
-      ), // AppBar
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: mapControl,
-              options: MapOptions(
-                initialCenter: _currentLocation ?? const LatLng(0,0),
-                initialZoom: 4,
-                minZoom: 0,
-                maxZoom: 100,
-                onMapReady: () {
-                  _mapReady = true;
-                  _centerOnCurrentLocation();
+    return ListenableBuilder(
+      listenable: store,
+      builder: (context, _) {
+        final query = _searchQuery.trim().toLowerCase();
+
+        final visibleCatches = store.catches.where((c) {
+          final matchesCategory =
+              _selectedCategory == 'All' || c.species == _selectedCategory;
+          final matchesSearch = query.isEmpty ||
+              c.species.toLowerCase().contains(query) ||
+              c.place.toLowerCase().contains(query);
+
+          return matchesCategory && matchesSearch;
+        }).toList();
+
+        final catchesWithLocation = visibleCatches.where(
+              (c) => c.latitude != null && c.longitude != null,
+        );
+
+        return Scaffold(
+          appBar: AppBar(
+            foregroundColor: const Color(0xFFEDEDED),
+            title: const Text(
+              'Map',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: Colors.black,
+              ),
+            ),
+            leading: IconButton(
+              icon: const Text(
+                '<',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              onPressed: () => Navigator.of(context).maybePop(),
+              tooltip: 'Back',
+            ),
+          ),
+          body: Stack(
+            children: [
+              FlutterMap(
+                mapController: mapControl,
+                options: MapOptions(
+                  initialCenter: _currentLocation ?? const LatLng(0, 0),
+                  initialZoom: 4,
+                  minZoom: 0,
+                  maxZoom: 100,
+                  onMapReady: () {
+                    _mapReady = true;
+                    _centerOnCurrentLocation();
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.fishdexteam.fishdex',
+                  ),
+                  MarkerLayer(
+                    markers: catchesWithLocation.map((c) {
+                      return Marker(
+                        point: LatLng(c.latitude!, c.longitude!),
+                        width: 110,
+                        height: 55,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CatchDetailsScreen(catchId: c.id),
+                              ),
+                            );
+                          },
+                          child: Column(
+                            children: [
+                              const Icon(Icons.location_pin, color: Colors.red, size: 32),
+                              Text(
+                                c.species,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  backgroundColor: Colors.white,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  CurrentLocationLayer(
+                    style: const LocationMarkerStyle(
+                      markerSize: Size(20, 20),
+                      markerDirection: MarkerDirection.heading,
+                    ),
+                  ),
+                ],
+              ),
+
+              if (isLoading)
+                const Center(child: CircularProgressIndicator()),
+
+              // Bottom panel: drag upward to expand.
+              DraggableScrollableSheet(
+                initialChildSize: 0.12,
+                minChildSize: 0.12,
+                maxChildSize: 0.75,
+                snap: true,
+                snapSizes: const [0.12, 0.75],
+                builder: (context, scrollController) {
+                  return Material(
+                    color: Colors.white,
+                    elevation: 12,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListView(
+                      controller: scrollController,
+                      padding: EdgeInsets.zero,
+                      children: [
+                        const SizedBox(height: 10),
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: Colors.grey,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Text(
+                            'Catches',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Search catches',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              isDense: true,
+                            ),
+                            onChanged: (value) {
+                              setState(() => _searchQuery = value);
+                            },
+                          ),
+                        ),
+                        SizedBox(
+                          height: 52,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            children: _categories.map((category) {
+                              return Padding(
+                                padding:
+                                const EdgeInsets.symmetric(horizontal: 4),
+                                child: ChoiceChip(
+                                  label: Text(category),
+                                  selected: _selectedCategory == category,
+                                  onSelected: (_) {
+                                    setState(() {
+                                      _selectedCategory = category;
+                                    });
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        if (visibleCatches.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('No saved catches yet.'),
+                          )
+                        else
+                          ...visibleCatches.map((c) {
+                            return ListTile(
+                              leading: const Icon(Icons.location_on),
+                              title: Text(c.species),
+                              subtitle: Text(
+                                c.place.isEmpty ? 'Place not provided' : c.place,
+                              ),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CatchDetailsScreen(catchId: c.id),
+                                  ),
+                                );
+                              },
+                            );
+                          }),
+                      ],
+                    ),
+                  );
                 },
               ),
-            children: [
-              TileLayer(
-                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                userAgentPackageName: 'com.fishdexteam.fishdex',
-              ), // Tile Layer
-              CurrentLocationLayer(
-                style: LocationMarkerStyle(
-                  markerSize: Size(20, 20),
-                  markerDirection: MarkerDirection.heading,
-                ), // LocationMarkerStyle
-              ), // CurrentLocationLayer
             ],
-          ), // FlutterMap
-        ],
-      ), // Stack
-      floatingActionButton: FloatingActionButton(
-        elevation: 0,
-        onPressed: _userCurrentLocation,
-        backgroundColor: Colors.blue,
-        child: const Icon(
-          Icons.my_location, size:30,
-          color: Colors.white,
-        ), // Icon
-      ),
-    ); // Scaffold
+          ),
+          floatingActionButton: FloatingActionButton(
+            elevation: 0,
+            onPressed: _userCurrentLocation,
+            backgroundColor: Colors.blue,
+            child: const Icon(
+              Icons.my_location,
+              size: 30,
+              color: Colors.white,
+            ),
+          ),
+        );
+      },
+    );
   }
 }
-
-
-// class _MapScreenState extends State<MapScreen> {
-//   String? _selected;
-//
-//   static const _spots = [
-//     Offset(0.30, 0.25),
-//     Offset(0.65, 0.40),
-//     Offset(0.45, 0.70),
-//     Offset(0.78, 0.78),
-//     Offset(0.20, 0.60),
-//   ];
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     final withPlace = store.catches.where((c) => c.place.isNotEmpty).toList();
-//     final selected =
-//         withPlace.where((c) => c.id == _selected).cast<CatchItem?>().firstOrNull;
-//     return Scaffold(
-//       body: Column(
-//         children: [
-//           const TopBar(title: 'Map', back: '<'),
-//           Expanded(
-//             child: Container(
-//               margin: const EdgeInsets.all(16),
-//               decoration: BoxDecoration(
-//                 color: const Color(0xFFEDEDED),
-//                 border: Border.all(color: kLine),
-//                 borderRadius: BorderRadius.circular(12),
-//               ),
-//               clipBehavior: Clip.antiAlias,
-//               child: LayoutBuilder(
-//                 builder: (context, box) {
-//                   return Stack(
-//                     children: [
-//                       Positioned.fill(
-//                         child: CustomPaint(painter: _GridPainter()),
-//                       ),
-//                       for (var i = 0; i < withPlace.length; i++)
-//                         Positioned(
-//                           left: _spots[i % _spots.length].dx * box.maxWidth - 16,
-//                           top: _spots[i % _spots.length].dy * box.maxHeight - 32,
-//                           child: GestureDetector(
-//                             onTap: () =>
-//                                 setState(() => _selected = withPlace[i].id),
-//                             child: Icon(
-//                               Icons.location_on,
-//                               size: 36,
-//                               color: withPlace[i].id == _selected
-//                                   ? kInk
-//                                   : kDark.withValues(alpha: 0.7),
-//                             ),
-//                           ),
-//                         ),
-//                       const Positioned(
-//                         right: 8,
-//                         bottom: 6,
-//                         child: Text('Map placeholder',
-//                             style: TextStyle(fontSize: 11, color: kMuted)),
-//                       ),
-//                     ],
-//                   );
-//                 },
-//               ),
-//             ),
-//           ),
-//           Padding(
-//             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-//             child: selected == null
-//                 ? const InfoRow(
-//                     title: 'Tap a pin',
-//                     subtitle: 'See which fish you caught there',
-//                   )
-//                 : InfoRow(
-//                     title: selected.species,
-//                     subtitle: selected.subtitle,
-//                     trailing: const Text('>', style: TextStyle(fontSize: 18)),
-//                     onTap: () => Navigator.of(context).push(
-//                       MaterialPageRoute(
-//                         builder: (_) =>
-//                             CatchDetailsScreen(catchId: selected.id),
-//                       ),
-//                     ),
-//                   ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-//
-// class _GridPainter extends CustomPainter {
-//   @override
-//   void paint(Canvas canvas, Size size) {
-//     final p = Paint()
-//       ..color = const Color(0xFFD0D0D0)
-//       ..strokeWidth = 1;
-//     for (double x = 0; x < size.width; x += 40) {
-//       canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
-//     }
-//     for (double y = 0; y < size.height; y += 40) {
-//       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-//     }
-//     final river = Paint()
-//       ..color = const Color(0xFFC4C4C4)
-//       ..style = PaintingStyle.stroke
-//       ..strokeWidth = 18;
-//     final path = Path()
-//       ..moveTo(0, size.height * 0.2)
-//       ..quadraticBezierTo(size.width * 0.5, size.height * 0.55, size.width,
-//           size.height * 0.35);
-//     canvas.drawPath(path, river);
-//   }
-//
-//   @override
-//   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-//}

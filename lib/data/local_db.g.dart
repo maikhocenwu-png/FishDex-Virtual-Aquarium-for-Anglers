@@ -351,6 +351,28 @@ class $LocalCatchesTable extends LocalCatches
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _latitudeMeta = const VerificationMeta(
+    'latitude',
+  );
+  @override
+  late final GeneratedColumn<double> latitude = GeneratedColumn<double>(
+    'latitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _longitudeMeta = const VerificationMeta(
+    'longitude',
+  );
+  @override
+  late final GeneratedColumn<double> longitude = GeneratedColumn<double>(
+    'longitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _lengthMeta = const VerificationMeta('length');
   @override
   late final GeneratedColumn<String> length = GeneratedColumn<String>(
@@ -459,6 +481,8 @@ class $LocalCatchesTable extends LocalCatches
     species,
     caughtAt,
     place,
+    latitude,
+    longitude,
     length,
     weight,
     notes,
@@ -517,6 +541,18 @@ class $LocalCatchesTable extends LocalCatches
       );
     } else if (isInserting) {
       context.missing(_placeMeta);
+    }
+    if (data.containsKey('latitude')) {
+      context.handle(
+        _latitudeMeta,
+        latitude.isAcceptableOrUnknown(data['latitude']!, _latitudeMeta),
+      );
+    }
+    if (data.containsKey('longitude')) {
+      context.handle(
+        _longitudeMeta,
+        longitude.isAcceptableOrUnknown(data['longitude']!, _longitudeMeta),
+      );
     }
     if (data.containsKey('length')) {
       context.handle(
@@ -618,6 +654,14 @@ class $LocalCatchesTable extends LocalCatches
         DriftSqlType.string,
         data['${effectivePrefix}place'],
       )!,
+      latitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}latitude'],
+      ),
+      longitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}longitude'],
+      ),
       length: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}length'],
@@ -669,6 +713,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
   final String species;
   final DateTime caughtAt;
   final String place;
+  final double? latitude;
+  final double? longitude;
   final String length;
   final String weight;
   final String notes;
@@ -684,6 +730,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
     required this.species,
     required this.caughtAt,
     required this.place,
+    this.latitude,
+    this.longitude,
     required this.length,
     required this.weight,
     required this.notes,
@@ -702,6 +750,12 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
     map['species'] = Variable<String>(species);
     map['caught_at'] = Variable<DateTime>(caughtAt);
     map['place'] = Variable<String>(place);
+    if (!nullToAbsent || latitude != null) {
+      map['latitude'] = Variable<double>(latitude);
+    }
+    if (!nullToAbsent || longitude != null) {
+      map['longitude'] = Variable<double>(longitude);
+    }
     map['length'] = Variable<String>(length);
     map['weight'] = Variable<String>(weight);
     map['notes'] = Variable<String>(notes);
@@ -725,6 +779,12 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
       species: Value(species),
       caughtAt: Value(caughtAt),
       place: Value(place),
+      latitude: latitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(latitude),
+      longitude: longitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(longitude),
       length: Value(length),
       weight: Value(weight),
       notes: Value(notes),
@@ -752,6 +812,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
       species: serializer.fromJson<String>(json['species']),
       caughtAt: serializer.fromJson<DateTime>(json['caughtAt']),
       place: serializer.fromJson<String>(json['place']),
+      latitude: serializer.fromJson<double?>(json['latitude']),
+      longitude: serializer.fromJson<double?>(json['longitude']),
       length: serializer.fromJson<String>(json['length']),
       weight: serializer.fromJson<String>(json['weight']),
       notes: serializer.fromJson<String>(json['notes']),
@@ -772,6 +834,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
       'species': serializer.toJson<String>(species),
       'caughtAt': serializer.toJson<DateTime>(caughtAt),
       'place': serializer.toJson<String>(place),
+      'latitude': serializer.toJson<double?>(latitude),
+      'longitude': serializer.toJson<double?>(longitude),
       'length': serializer.toJson<String>(length),
       'weight': serializer.toJson<String>(weight),
       'notes': serializer.toJson<String>(notes),
@@ -790,6 +854,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
     String? species,
     DateTime? caughtAt,
     String? place,
+    Value<double?> latitude = const Value.absent(),
+    Value<double?> longitude = const Value.absent(),
     String? length,
     String? weight,
     String? notes,
@@ -805,6 +871,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
     species: species ?? this.species,
     caughtAt: caughtAt ?? this.caughtAt,
     place: place ?? this.place,
+    latitude: latitude.present ? latitude.value : this.latitude,
+    longitude: longitude.present ? longitude.value : this.longitude,
     length: length ?? this.length,
     weight: weight ?? this.weight,
     notes: notes ?? this.notes,
@@ -822,6 +890,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
       species: data.species.present ? data.species.value : this.species,
       caughtAt: data.caughtAt.present ? data.caughtAt.value : this.caughtAt,
       place: data.place.present ? data.place.value : this.place,
+      latitude: data.latitude.present ? data.latitude.value : this.latitude,
+      longitude: data.longitude.present ? data.longitude.value : this.longitude,
       length: data.length.present ? data.length.value : this.length,
       weight: data.weight.present ? data.weight.value : this.weight,
       notes: data.notes.present ? data.notes.value : this.notes,
@@ -846,6 +916,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
           ..write('species: $species, ')
           ..write('caughtAt: $caughtAt, ')
           ..write('place: $place, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
           ..write('length: $length, ')
           ..write('weight: $weight, ')
           ..write('notes: $notes, ')
@@ -866,6 +938,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
     species,
     caughtAt,
     place,
+    latitude,
+    longitude,
     length,
     weight,
     notes,
@@ -885,6 +959,8 @@ class CatchRow extends DataClass implements Insertable<CatchRow> {
           other.species == this.species &&
           other.caughtAt == this.caughtAt &&
           other.place == this.place &&
+          other.latitude == this.latitude &&
+          other.longitude == this.longitude &&
           other.length == this.length &&
           other.weight == this.weight &&
           other.notes == this.notes &&
@@ -902,6 +978,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
   final Value<String> species;
   final Value<DateTime> caughtAt;
   final Value<String> place;
+  final Value<double?> latitude;
+  final Value<double?> longitude;
   final Value<String> length;
   final Value<String> weight;
   final Value<String> notes;
@@ -918,6 +996,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
     this.species = const Value.absent(),
     this.caughtAt = const Value.absent(),
     this.place = const Value.absent(),
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
     this.length = const Value.absent(),
     this.weight = const Value.absent(),
     this.notes = const Value.absent(),
@@ -935,6 +1015,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
     required String species,
     required DateTime caughtAt,
     required String place,
+    this.latitude = const Value.absent(),
+    this.longitude = const Value.absent(),
     required String length,
     required String weight,
     required String notes,
@@ -963,6 +1045,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
     Expression<String>? species,
     Expression<DateTime>? caughtAt,
     Expression<String>? place,
+    Expression<double>? latitude,
+    Expression<double>? longitude,
     Expression<String>? length,
     Expression<String>? weight,
     Expression<String>? notes,
@@ -980,6 +1064,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
       if (species != null) 'species': species,
       if (caughtAt != null) 'caught_at': caughtAt,
       if (place != null) 'place': place,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
       if (length != null) 'length': length,
       if (weight != null) 'weight': weight,
       if (notes != null) 'notes': notes,
@@ -999,6 +1085,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
     Value<String>? species,
     Value<DateTime>? caughtAt,
     Value<String>? place,
+    Value<double?>? latitude,
+    Value<double?>? longitude,
     Value<String>? length,
     Value<String>? weight,
     Value<String>? notes,
@@ -1016,6 +1104,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
       species: species ?? this.species,
       caughtAt: caughtAt ?? this.caughtAt,
       place: place ?? this.place,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       length: length ?? this.length,
       weight: weight ?? this.weight,
       notes: notes ?? this.notes,
@@ -1046,6 +1136,12 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
     }
     if (place.present) {
       map['place'] = Variable<String>(place.value);
+    }
+    if (latitude.present) {
+      map['latitude'] = Variable<double>(latitude.value);
+    }
+    if (longitude.present) {
+      map['longitude'] = Variable<double>(longitude.value);
     }
     if (length.present) {
       map['length'] = Variable<String>(length.value);
@@ -1088,6 +1184,8 @@ class LocalCatchesCompanion extends UpdateCompanion<CatchRow> {
           ..write('species: $species, ')
           ..write('caughtAt: $caughtAt, ')
           ..write('place: $place, ')
+          ..write('latitude: $latitude, ')
+          ..write('longitude: $longitude, ')
           ..write('length: $length, ')
           ..write('weight: $weight, ')
           ..write('notes: $notes, ')
@@ -1306,6 +1404,8 @@ typedef $$LocalCatchesTableCreateCompanionBuilder =
       required String species,
       required DateTime caughtAt,
       required String place,
+      Value<double?> latitude,
+      Value<double?> longitude,
       required String length,
       required String weight,
       required String notes,
@@ -1324,6 +1424,8 @@ typedef $$LocalCatchesTableUpdateCompanionBuilder =
       Value<String> species,
       Value<DateTime> caughtAt,
       Value<String> place,
+      Value<double?> latitude,
+      Value<double?> longitude,
       Value<String> length,
       Value<String> weight,
       Value<String> notes,
@@ -1367,6 +1469,16 @@ class $$LocalCatchesTableFilterComposer
 
   ColumnFilters<String> get place => $composableBuilder(
     column: $table.place,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get longitude => $composableBuilder(
+    column: $table.longitude,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1450,6 +1562,16 @@ class $$LocalCatchesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get latitude => $composableBuilder(
+    column: $table.latitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get longitude => $composableBuilder(
+    column: $table.longitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get length => $composableBuilder(
     column: $table.length,
     builder: (column) => ColumnOrderings(column),
@@ -1520,6 +1642,12 @@ class $$LocalCatchesTableAnnotationComposer
   GeneratedColumn<String> get place =>
       $composableBuilder(column: $table.place, builder: (column) => column);
 
+  GeneratedColumn<double> get latitude =>
+      $composableBuilder(column: $table.latitude, builder: (column) => column);
+
+  GeneratedColumn<double> get longitude =>
+      $composableBuilder(column: $table.longitude, builder: (column) => column);
+
   GeneratedColumn<String> get length =>
       $composableBuilder(column: $table.length, builder: (column) => column);
 
@@ -1585,6 +1713,8 @@ class $$LocalCatchesTableTableManager
                 Value<String> species = const Value.absent(),
                 Value<DateTime> caughtAt = const Value.absent(),
                 Value<String> place = const Value.absent(),
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
                 Value<String> length = const Value.absent(),
                 Value<String> weight = const Value.absent(),
                 Value<String> notes = const Value.absent(),
@@ -1601,6 +1731,8 @@ class $$LocalCatchesTableTableManager
                 species: species,
                 caughtAt: caughtAt,
                 place: place,
+                latitude: latitude,
+                longitude: longitude,
                 length: length,
                 weight: weight,
                 notes: notes,
@@ -1619,6 +1751,8 @@ class $$LocalCatchesTableTableManager
                 required String species,
                 required DateTime caughtAt,
                 required String place,
+                Value<double?> latitude = const Value.absent(),
+                Value<double?> longitude = const Value.absent(),
                 required String length,
                 required String weight,
                 required String notes,
@@ -1635,6 +1769,8 @@ class $$LocalCatchesTableTableManager
                 species: species,
                 caughtAt: caughtAt,
                 place: place,
+                latitude: latitude,
+                longitude: longitude,
                 length: length,
                 weight: weight,
                 notes: notes,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:image_picker/image_picker.dart' show ImageSource;
+import 'package:location/location.dart';
 
 import '../data/photo_service.dart';
 import '../data/store.dart';
@@ -24,7 +25,10 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
   late DateTime _when;
   late final String _id; // made now so the photo file can be named after it
   String? _localPhoto; // a photo picked on this screen
+  double? _latitude;
+  double? _longitude;
   bool _saving = false;
+  bool _gettingLocation = false;
   late final TextEditingController _place;
   late final TextEditingController _length;
   late final TextEditingController _weight;
@@ -39,6 +43,8 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
     _species = e?.species;
     _when = e?.caughtAt ?? DateTime.now();
     _id = e?.id ?? newCatchId();
+    _latitude = e?.latitude;
+    _longitude = e?.longitude;
     _place = TextEditingController(text: e?.place ?? '');
     _length = TextEditingController(text: e?.length ?? '');
     _weight = TextEditingController(text: e?.weight ?? '');
@@ -124,6 +130,60 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
     }
   }
 
+  Future<void> _useCurrentLocation() async {
+    if (_gettingLocation) return;
+    setState(() => _gettingLocation = true);
+
+    final location = Location();
+
+    try {
+      var serviceEnabled = await location.serviceEnabled();
+      if (!serviceEnabled) {
+        serviceEnabled = await location.requestService();
+        if (!serviceEnabled) return;
+      }
+
+      var permission = await location.hasPermission();
+      if (permission == PermissionStatus.denied) {
+        permission = await location.requestPermission();
+      }
+
+      if (permission != PermissionStatus.granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Location not shared. You can enter a place name instead.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final result = await location.getLocation();
+
+      if (mounted) {
+        setState(() {
+          _latitude = result.latitude;
+          _longitude = result.longitude;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not get location. You can enter a place instead.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _gettingLocation = false);
+    }
+  }
+
   Future<void> _save() async {
     if (_species == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,6 +199,8 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
         e.species = _species!;
         e.caughtAt = _when;
         e.place = _place.text.trim();
+        e.latitude = _latitude;
+        e.longitude = _longitude;
         e.length = _length.text.trim();
         e.weight = _weight.text.trim();
         e.notes = _notes.text.trim();
@@ -154,6 +216,8 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
           species: _species!,
           caughtAt: _when,
           place: _place.text.trim(),
+          latitude: _latitude,
+          longitude: _longitude,
           length: _length.text.trim(),
           weight: _weight.text.trim(),
           notes: _notes.text.trim(),
@@ -215,6 +279,23 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
                   PickField(fmtDateTime(_when), onTap: _pickDate),
                   const FieldLabel('Place'),
                   AppField(controller: _place, hint: 'Where did you catch it?'),
+                  TextButton.icon(
+                    onPressed: _gettingLocation ? null : _useCurrentLocation,
+                    icon: _gettingLocation
+                        ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : const Icon(Icons.my_location),
+                    label: Text(
+                      _gettingLocation
+                          ? 'Getting location...'
+                          : _latitude == null
+                          ? 'Use current location (optional)'
+                          : 'Location added • Tap to update',
+                    ),
+                  ),
                   Row(
                     children: [
                       Expanded(
@@ -244,6 +325,7 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
                           ],
                         ),
                       ),
+
                     ],
                   ),
                   const FieldLabel('Notes'),

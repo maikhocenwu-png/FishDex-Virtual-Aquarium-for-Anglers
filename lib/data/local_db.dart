@@ -27,6 +27,8 @@ class LocalCatches extends Table {
   TextColumn get species => text()();
   DateTimeColumn get caughtAt => dateTime()();
   TextColumn get place => text()();
+  RealColumn get latitude => real().nullable()();
+  RealColumn get longitude => real().nullable()();
   TextColumn get length => text()();
   TextColumn get weight => text()();
   TextColumn get notes => text()();
@@ -46,5 +48,15 @@ class LocalDb extends _$LocalDb {
   LocalDb() : super(driftDatabase(name: 'fishdex'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(localCatches, localCatches.latitude);
+        await m.addColumn(localCatches, localCatches.longitude);
+      }
+    },
+  );
 }

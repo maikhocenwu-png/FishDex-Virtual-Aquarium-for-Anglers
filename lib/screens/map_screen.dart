@@ -6,6 +6,7 @@ import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 
+import 'catch_details_screen.dart';
 import '../data/store.dart';
 import '../ui/theme.dart';
 
@@ -205,10 +206,13 @@ class _MapScreenState extends State<MapScreen> {
                         width: 110,
                         height: 55,
                         child: GestureDetector(
-                          onTap: () => mapControl.move(
-                            LatLng(c.latitude!, c.longitude!),
-                            15,
-                          ),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CatchDetailsScreen(catchId: c.id),
+                              ),
+                            );
+                          },
                           child: Column(
                             children: [
                               const Icon(Icons.location_pin, color: Colors.red, size: 32),
@@ -322,16 +326,20 @@ class _MapScreenState extends State<MapScreen> {
                             child: Text('No saved catches yet.'),
                           )
                         else
-                          ..._visibleCatches.map((catchItem) {
-                            final point = LatLng(catchItem.latitude!, catchItem.longitude!);
-
+                          ...visibleCatches.map((c) {
                             return ListTile(
                               leading: const Icon(Icons.location_on),
-                              title: Text(catchItem.species),
+                              title: Text(c.species),
                               subtitle: Text(
-                                catchItem.place.isEmpty ? 'Place not provided' : catchItem.place,
+                                c.place.isEmpty ? 'Place not provided' : c.place,
                               ),
-                              onTap: () => mapControl.move(point, 15),
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CatchDetailsScreen(catchId: c.id),
+                                  ),
+                                );
+                              },
                             );
                           }),
                       ],

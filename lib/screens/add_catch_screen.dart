@@ -162,7 +162,6 @@ class _AddCatchScreenState extends State<AddCatchScreen> {
       }
 
       final result = await location.getLocation();
-      if (result.latitude == null || result.longitude == null) return;
 
       if (mounted) {
         setState(() {
